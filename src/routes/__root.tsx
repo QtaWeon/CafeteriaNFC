@@ -1,8 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, Link, createRootRouteWithContext, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
-
-import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
