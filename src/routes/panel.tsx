@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { collection, query, where, orderBy, getDocs, doc, updateDoc } from "firebase/firestore";
+import { useState } from "react";
 import { db } from "@/lib/firebase";
+import { seedDatabase } from "@/lib/seed";
 import {
   gs,
   estadoLabel,
@@ -32,6 +34,21 @@ export const Route = createFileRoute("/panel")({
 
 function Panel() {
   const qc = useQueryClient();
+  const [seeding, setSeeding] = useState(false);
+
+  async function handleSeed() {
+    if (!confirm("¿Poblar la base de datos con las mesas y el menú de ejemplo? Esto sobreescribirá los datos existentes.")) return;
+    setSeeding(true);
+    try {
+      await seedDatabase();
+      toast.success("✅ Base de datos poblada correctamente");
+      qc.invalidateQueries();
+    } catch (e) {
+      toast.error("❌ Error al poblar la base de datos");
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   const { data: pedidos } = useQuery({
     queryKey: ["pedidos-panel"],
@@ -81,12 +98,21 @@ function Panel() {
               <p className="text-sm text-ink/50">Administrador · cocina y mozos</p>
             </div>
           </div>
-          <Link
-            to="/"
-            className="rounded-2xl bg-ink text-cream px-5 py-3 font-display font-semibold shadow-[4px_4px_0_var(--brand)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-          >
-            Ver mesas
-          </Link>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              className="rounded-2xl bg-sun text-ink px-5 py-3 font-display font-semibold shadow-[4px_4px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {seeding ? "Cargando..." : "🌱 Poblar BD"}
+            </button>
+            <Link
+              to="/"
+              className="rounded-2xl bg-ink text-cream px-5 py-3 font-display font-semibold shadow-[4px_4px_0_var(--brand)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+            >
+              Ver mesas
+            </Link>
+          </div>
         </header>
 
         <section className="mt-8">
