@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,9 +26,9 @@ function Index() {
   const { data: mesas } = useQuery({
     queryKey: ["mesas"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("mesas").select("*").order("numero");
-      if (error) throw error;
-      return data;
+      const q = query(collection(db, "mesas"), orderBy("numero"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
     },
   });
 

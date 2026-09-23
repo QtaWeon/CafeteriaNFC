@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { gs, imagenDe, estadoLabel, type Estado } from "@/lib/cafe";
 import { toast } from "sonner";
 
@@ -41,26 +42,20 @@ function MesaPage() {
   const { data: mesa } = useQuery({
     queryKey: ["mesa", code],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("mesas")
-        .select("*")
-        .eq("nfc_code", code)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      const q = query(collection(db, "mesas"), where("nfc_code", "==", code), limit(1));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) throw new Error("Mesa no encontrada");
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as any;
     },
   });
 
   const { data: menu } = useQuery({
     queryKey: ["menu"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("menu_items")
-        .select("*")
-        .eq("disponible", true)
-        .order("orden");
-      if (error) throw error;
-      return data;
+      const q = query(collection(db, "menu_items"), where("disponible", "==", true), orderBy("orden"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
     },
   });
 
@@ -69,16 +64,16 @@ function MesaPage() {
     enabled: !!mesa?.id,
     refetchInterval: 4000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pedidos")
-        .select("*, pedido_items(*)")
-        .eq("mesa_id", mesa!.id)
-        .neq("estado", "entregado")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      const q = query(
+        collection(db, "pedidos"),
+        where("mesa_id", "==", mesa!.id),
+        orderBy("created_at", "desc"),
+        limit(10)
+      );
+      const snapshot = await getDocs(q);
+      const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+      const activo = docs.find((d) => d.estado !== "entregado");
+      return activo || null;
     },
   });
 
@@ -118,34 +113,32 @@ function MesaPage() {
   async function enviarPedido() {
     if (!mesa || carrito.length === 0) return;
     setEnviando(true);
-    const { data: nuevo, error } = await supabase
-      .from("pedidos")
-      .insert({ mesa_id: mesa.id, total })
-      .select()
-      .single();
-    if (error || !nuevo) {
-      setEnviando(false);
-      toast.error("No pudimos enviar el pedido");
-      return;
-    }
-    const { error: errItems } = await supabase.from("pedido_items").insert(
-      carrito.map((l) => ({
-        pedido_id: nuevo.id,
+    try {
+      const items = carrito.map((l) => ({
         menu_item_id: l.menu_item_id,
         nombre: l.nombre,
         cantidad: l.cantidad,
         precio_unitario: l.precio,
         personalizacion: l.personalizacion,
-      })),
-    );
-    setEnviando(false);
-    if (errItems) {
+      }));
+      await addDoc(collection(db, "pedidos"), {
+        mesa_id: mesa.id,
+        mesa_numero: mesa.numero,
+        nfc_code: mesa.nfc_code,
+        total,
+        estado: "pendiente",
+        items,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      setCarrito([]);
+      toast.success("Pedido enviado a la cocina");
+      qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa.id] });
+    } catch (e) {
       toast.error("No pudimos enviar el pedido");
-      return;
+    } finally {
+      setEnviando(false);
     }
-    setCarrito([]);
-    toast.success("Pedido enviado a la cocina");
-    qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa.id] });
   }
 
   async function pedirCuenta() {
@@ -153,7 +146,7 @@ function MesaPage() {
       toast.error("Todavía no tenés un pedido activo");
       return;
     }
-    await supabase.from("pedidos").update({ cuenta_solicitada: true }).eq("id", pedido.id);
+    await updateDoc(doc(db, "pedidos", pedido.id), { cuenta_solicitada: true });
     qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa?.id] });
     toast.success("Avisamos al mozo");
   }

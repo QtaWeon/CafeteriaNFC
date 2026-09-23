@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { collection, query, where, orderBy, getDocs, doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   gs,
   estadoLabel,
@@ -36,24 +37,26 @@ function Panel() {
     queryKey: ["pedidos-panel"],
     refetchInterval: 4000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pedidos")
-        .select("*, mesas(numero, nfc_code), pedido_items(*)")
-        .neq("estado", "entregado")
-        .order("created_at");
-      if (error) throw error;
-      return data;
+      const q = query(
+        collection(db, "pedidos"),
+        where("estado", "!=", "entregado"),
+        orderBy("estado"),
+        orderBy("created_at")
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
     },
   });
 
   async function avanzar(id: string, estado: Estado) {
     const proximo = siguienteEstado[estado];
     if (!proximo) return;
-    const { error } = await supabase
-      .from("pedidos")
-      .update({ estado: proximo, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) {
+    try {
+      await updateDoc(doc(db, "pedidos", id), {
+        estado: proximo,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (error) {
       toast.error("No pudimos actualizar el pedido");
       return;
     }
@@ -101,14 +104,14 @@ function Panel() {
                   className="rounded-3xl bg-white p-5 shadow-[6px_6px_0_var(--ink)] border-2 border-ink/5"
                 >
                   <div className="flex items-center justify-between">
-                    <p className="font-display font-bold text-xl">Mesa {p.mesas?.numero}</p>
+                    <p className="font-display font-bold text-xl">Mesa {p.mesa_numero}</p>
                     <span className="bg-sun/40 text-ink text-xs font-bold px-2.5 py-1 rounded-full">
-                      {p.mesas?.nfc_code}
+                      {p.nfc_code}
                     </span>
                   </div>
                   <ul className="mt-3 text-sm text-ink/70 space-y-1">
-                    {p.pedido_items.map((it) => (
-                      <li key={it.id}>
+                    {(p.items || []).map((it: any, i: number) => (
+                      <li key={i}>
                         {it.cantidad} × {it.nombre}
                         {it.personalizacion && (
                           <span className="text-ink/40"> · {it.personalizacion}</span>
