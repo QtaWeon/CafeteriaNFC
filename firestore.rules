@@ -3,11 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /mesas/{mesaId} {
       allow read: if true;
-      allow write: if true; // temporary allow write for seeding
+      allow write: if false; // Solo lectura para seguridad
     }
     match /menu_items/{itemId} {
       allow read: if true;
-      allow write: if true; // temporary allow write for seeding
+      allow write: if true; // Escritura permitida para Administrar Menú desde el panel
     }
     match /pedidos/{pedidoId} {
       allow read: if true;
