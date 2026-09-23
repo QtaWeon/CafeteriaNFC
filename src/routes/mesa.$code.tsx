@@ -53,9 +53,10 @@ function MesaPage() {
   const { data: menu } = useQuery({
     queryKey: ["menu"],
     queryFn: async () => {
-      const q = query(collection(db, "menu_items"), where("disponible", "==", true), orderBy("orden"));
+      const q = query(collection(db, "menu_items"), where("disponible", "==", true));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+      const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+      return items.sort((a, b) => (a.orden || 0) - (b.orden || 0));
     },
   });
 

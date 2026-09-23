@@ -56,12 +56,14 @@ function Panel() {
     queryFn: async () => {
       const q = query(
         collection(db, "pedidos"),
-        where("estado", "!=", "entregado"),
-        orderBy("estado"),
-        orderBy("created_at")
+        where("estado", "!=", "entregado")
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+      const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+      return items.sort((a, b) => {
+        if (a.estado !== b.estado) return a.estado.localeCompare(b.estado);
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
     },
   });
 
