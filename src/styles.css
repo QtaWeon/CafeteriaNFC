@@ -19,6 +19,14 @@
  */
 
 @theme inline {
+  --font-display: "Fredoka", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+  --color-brand: var(--brand);
+  --color-teal: var(--teal);
+  --color-sun: var(--sun);
+  --color-ink: var(--ink);
+  --color-cream: var(--cream);
+  --color-sage: var(--sage);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -62,9 +70,15 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --radius: 1rem;
+  --brand: oklch(0.674 0.201 35.1);
+  --teal: oklch(0.687 0.117 183.2);
+  --sun: oklch(0.845 0.153 86.5);
+  --ink: oklch(0.223 0.021 291.5);
+  --cream: oklch(0.977 0.021 79.4);
+  --sage: oklch(0.882 0.113 136.2);
+  --background: var(--cream);
+  --foreground: var(--ink);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
