@@ -66,7 +66,7 @@ function Panel() {
     queryFn: async () => {
       const q = query(
         collection(db, "pedidos"),
-        where("estado", "!=", "entregado")
+        where("estado", "!=", "finalizado")
       );
       const snapshot = await getDocs(q);
       const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
@@ -208,7 +208,11 @@ function Panel() {
                     <button
                       onClick={() => avanzar(p.id, estado)}
                       className={`mt-4 w-full rounded-2xl py-2.5 font-bold shadow-[3px_3px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none ${
-                        estado === "listo" ? "bg-sage text-ink" : "bg-teal text-cream"
+                        estado === "entregado" 
+                          ? "bg-ink text-cream" 
+                          : estado === "listo" 
+                            ? "bg-sage text-ink" 
+                            : "bg-teal text-cream"
                       }`}
                     >
                       {accionLabel[estado]}

@@ -67,7 +67,7 @@ function MesaPage() {
     queryFn: async () => {
       const q = query(
         collection(db, "pedidos"),
-        where("estado", "!=", "entregado")
+        where("estado", "!=", "finalizado")
       );
       const snapshot = await getDocs(q);
       const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
@@ -329,17 +329,17 @@ function MesaPage() {
               <p className="text-xs font-bold uppercase tracking-widest text-ink/40">
                 Estado en vivo
               </p>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {(["pendiente", "preparando", "listo"] as const).map((e, i) => {
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {(["pendiente", "preparando", "listo", "entregado"] as const).map((e, i) => {
                   const activo = pedido && estado === e;
                   return (
                     <div
                       key={e}
-                      className={`rounded-2xl p-3 text-center ${
+                      className={`rounded-2xl p-3 text-center flex flex-col items-center justify-center ${
                         activo ? "bg-sun/30 ring-2 ring-brand" : "bg-cream"
                       }`}
                     >
-                      <span className="text-2xl">{["🟡", "🔵", "🟢"][i]}</span>
+                      <span className="text-xl">{["🟡", "🔵", "🟢", "🍽️"][i]}</span>
                       <p
                         className={`text-xs font-bold mt-1 ${activo ? "text-brand" : ""}`}
                       >

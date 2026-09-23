@@ -18,32 +18,36 @@ export function gs(valor: number): string {
   return "Gs " + valor.toLocaleString("es-PY");
 }
 
-export type Estado = "pendiente" | "preparando" | "listo" | "entregado";
+export type Estado = "pendiente" | "preparando" | "listo" | "entregado" | "finalizado";
 
 export const estadoLabel: Record<Estado, string> = {
   pendiente: "Pendiente",
   preparando: "Preparando",
   listo: "Listo",
-  entregado: "Entregado",
+  entregado: "Servido",
+  finalizado: "Finalizado",
 };
 
 export const estadoDot: Record<Estado, string> = {
   pendiente: "bg-sun",
   preparando: "bg-teal",
   listo: "bg-sage",
-  entregado: "bg-ink/30",
+  entregado: "bg-brand",
+  finalizado: "bg-ink/30",
 };
 
 export const siguienteEstado: Record<Estado, Estado | null> = {
   pendiente: "preparando",
   preparando: "listo",
   listo: "entregado",
-  entregado: null,
+  entregado: "finalizado",
+  finalizado: null,
 };
 
 export const accionLabel: Record<Estado, string> = {
   pendiente: "ACEPTAR",
   preparando: "LISTO",
-  listo: "ENTREGADO",
-  entregado: "",
+  listo: "SERVIR",
+  entregado: "CERRAR MESA",
+  finalizado: "",
 };
