@@ -67,14 +67,17 @@ function MesaPage() {
     queryFn: async () => {
       const q = query(
         collection(db, "pedidos"),
-        where("mesa_id", "==", mesa!.id),
-        orderBy("created_at", "desc"),
-        limit(10)
+        where("estado", "!=", "entregado")
       );
       const snapshot = await getDocs(q);
       const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
-      const activo = docs.find((d) => d.estado !== "entregado");
-      return activo || null;
+      
+      // Filtrar localmente por mesa_id y ordenar por fecha descendente
+      const activosMesa = docs
+        .filter((d) => d.mesa_id === mesa!.id)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
+      return activosMesa.length > 0 ? activosMesa[0] : null;
     },
   });
 
