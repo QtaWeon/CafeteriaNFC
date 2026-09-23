@@ -91,9 +91,10 @@ function MesaPage() {
       const i = prev.findIndex(
         (l) => l.menu_item_id === item.id && l.personalizacion === personalizacion,
       );
-      if (i >= 0) {
+      const existente = i >= 0 ? prev[i] : undefined;
+      if (existente) {
         const copia = [...prev];
-        copia[i] = { ...copia[i], cantidad: copia[i].cantidad + 1 };
+        copia[i] = { ...existente, cantidad: existente.cantidad + 1 };
         return copia;
       }
       return [
