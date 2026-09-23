@@ -14,7 +14,152 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      menu_items: {
+        Row: {
+          categoria: string
+          created_at: string
+          descripcion: string
+          disponible: boolean
+          id: string
+          imagen: string
+          nombre: string
+          opciones: string[]
+          orden: number
+          precio: number
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          descripcion?: string
+          disponible?: boolean
+          id?: string
+          imagen?: string
+          nombre: string
+          opciones?: string[]
+          orden?: number
+          precio: number
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          descripcion?: string
+          disponible?: boolean
+          id?: string
+          imagen?: string
+          nombre?: string
+          opciones?: string[]
+          orden?: number
+          precio?: number
+        }
+        Relationships: []
+      }
+      mesas: {
+        Row: {
+          created_at: string
+          id: string
+          nfc_code: string
+          numero: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nfc_code: string
+          numero: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nfc_code?: string
+          numero?: number
+        }
+        Relationships: []
+      }
+      pedido_items: {
+        Row: {
+          cantidad: number
+          id: string
+          menu_item_id: string | null
+          nombre: string
+          pedido_id: string
+          personalizacion: string
+          precio_unitario: number
+        }
+        Insert: {
+          cantidad?: number
+          id?: string
+          menu_item_id?: string | null
+          nombre: string
+          pedido_id: string
+          personalizacion?: string
+          precio_unitario: number
+        }
+        Update: {
+          cantidad?: number
+          id?: string
+          menu_item_id?: string | null
+          nombre?: string
+          pedido_id?: string
+          personalizacion?: string
+          precio_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedido_items_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedido_items_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pedidos: {
+        Row: {
+          created_at: string
+          cuenta_solicitada: boolean
+          estado: Database["public"]["Enums"]["order_status"]
+          id: string
+          mesa_id: string
+          nota: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cuenta_solicitada?: boolean
+          estado?: Database["public"]["Enums"]["order_status"]
+          id?: string
+          mesa_id: string
+          nota?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cuenta_solicitada?: boolean
+          estado?: Database["public"]["Enums"]["order_status"]
+          id?: string
+          mesa_id?: string
+          nota?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_mesa_id_fkey"
+            columns: ["mesa_id"]
+            isOneToOne: false
+            referencedRelation: "mesas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +168,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      order_status: "pendiente" | "preparando" | "listo" | "entregado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +295,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      order_status: ["pendiente", "preparando", "listo", "entregado"],
+    },
   },
 } as const
