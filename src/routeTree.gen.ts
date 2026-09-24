@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CocinaRouteImport } from './routes/cocina'
+import { Route as GraciasRouteImport } from './routes/gracias'
 import { Route as PanelRouteImport } from './routes/panel'
 import { Route as MesaCodeRouteImport } from './routes/mesa.$code'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const CocinaRoute = CocinaRouteImport.update({
   id: '/cocina',
   path: '/cocina',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GraciasRoute = GraciasRouteImport.update({
+  id: '/gracias',
+  path: '/gracias',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PanelRoute = PanelRouteImport.update({
@@ -38,12 +44,14 @@ const MesaCodeRoute = MesaCodeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cocina': typeof CocinaRoute
+  '/gracias': typeof GraciasRoute
   '/panel': typeof PanelRoute
   '/mesa/$code': typeof MesaCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cocina': typeof CocinaRoute
+  '/gracias': typeof GraciasRoute
   '/panel': typeof PanelRoute
   '/mesa/$code': typeof MesaCodeRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/cocina': typeof CocinaRoute
+  '/gracias': typeof GraciasRoute
   '/panel': typeof PanelRoute
   '/mesa/$code': typeof MesaCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/cocina' | '/panel' | '/mesa/$code'
+  fullPaths: '/' | '/cocina' | '/gracias' | '/panel' | '/mesa/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/cocina' | '/panel' | '/mesa/$code'
-  id: '__root__' | '/' | '/cocina' | '/panel' | '/mesa/$code'
+  to: '/' | '/cocina' | '/gracias' | '/panel' | '/mesa/$code'
+  id: '__root__' | '/' | '/cocina' | '/gracias' | '/panel' | '/mesa/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CocinaRoute: typeof CocinaRoute
+  GraciasRoute: typeof GraciasRoute
   PanelRoute: typeof PanelRoute
   MesaCodeRoute: typeof MesaCodeRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/cocina'
       fullPath: '/cocina'
       preLoaderRoute: typeof CocinaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gracias': {
+      id: '/gracias'
+      path: '/gracias'
+      fullPath: '/gracias'
+      preLoaderRoute: typeof GraciasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/panel': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CocinaRoute: CocinaRoute,
+  GraciasRoute: GraciasRoute,
   PanelRoute: PanelRoute,
   MesaCodeRoute: MesaCodeRoute,
 }

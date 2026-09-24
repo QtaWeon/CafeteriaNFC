@@ -169,7 +169,7 @@ function MesaPage() {
       toast.success("Avisamos al mozo de tu forma de pago");
     }
     setPagando(false);
-    window.location.href = "/";
+    window.location.href = "/gracias";
   }
 
   const estado = (pedido?.estado ?? "pendiente") as Estado;

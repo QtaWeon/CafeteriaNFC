@@ -33,7 +33,7 @@ export function MesaManager() {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const numero = Number(form.get("numero"));
-    const nfc_code = form.get("nfc_code") as string;
+    const nfc_code = crypto.randomUUID();
     
     try {
       await addDoc(collection(db, "mesas"), {
@@ -65,9 +65,8 @@ export function MesaManager() {
       {agregando && (
         <form onSubmit={agregarMesa} className="bg-white p-5 rounded-3xl shadow-[6px_6px_0_var(--ink)] border-2 border-ink/5 space-y-4">
           <h3 className="font-display font-bold text-lg">Nueva Mesa</h3>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-1 gap-4">
             <input required type="number" name="numero" placeholder="Número de Mesa (ej. 5)" className="bg-cream rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-brand" />
-            <input required name="nfc_code" placeholder="Código NFC (ej. NFC005)" className="bg-cream rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-brand" />
           </div>
           <button type="submit" className="w-full bg-sun text-ink py-3 rounded-xl font-bold">
             Guardar Mesa
