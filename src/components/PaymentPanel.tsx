@@ -5,10 +5,11 @@ import { toast } from "sonner";
 interface PaymentPanelProps {
   total: number;
   onSuccess: () => void;
+  onCash: () => void;
   onClose: () => void;
 }
 
-export function PaymentPanel({ total, onSuccess, onClose }: PaymentPanelProps) {
+export function PaymentPanel({ total, onSuccess, onCash, onClose }: PaymentPanelProps) {
   const [propinaPct, setPropinaPct] = useState(10);
   const propina = (total * propinaPct) / 100;
   const final = total + propina;
@@ -50,8 +51,8 @@ export function PaymentPanel({ total, onSuccess, onClose }: PaymentPanelProps) {
         <button
           onClick={() => {
             // NOTA: Reemplazá este enlace con tu Link de Pago real de MP
-            // O idealmente, llamá a tu backend para generar un "init_point" o "Preference ID"
-            window.open("https://link.mercadopago.com.py/cafenfcdemo", "_blank");
+            // Usando un link real temporal para que no tire error de DNS
+            window.open("https://www.mercadopago.com", "_blank");
             
             // Simulación: Asumimos que el pago se completó para avanzar la demo.
             // En producción, deberías esperar a un Webhook de MP que actualice Firebase.
@@ -63,6 +64,13 @@ export function PaymentPanel({ total, onSuccess, onClose }: PaymentPanelProps) {
           className="w-full rounded-2xl bg-[#009EE3] text-white py-4 font-bold text-lg shadow-[4px_4px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
         >
           Pagar {gs(final)} en MP
+        </button>
+
+        <button
+          onClick={onCash}
+          className="mt-4 w-full rounded-2xl bg-cream text-ink py-4 font-bold text-lg border-2 border-ink/10 active:bg-ink/5"
+        >
+          Prefiero pagar en efectivo
         </button>
       </div>
     );
@@ -132,6 +140,13 @@ export function PaymentPanel({ total, onSuccess, onClose }: PaymentPanelProps) {
         className="mt-6 w-full rounded-2xl bg-brand text-cream py-4 font-display font-bold text-xl shadow-[4px_4px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none flex items-center justify-center gap-3"
       >
         <span>📡</span> Tap to Pay
+      </button>
+
+      <button
+        onClick={onCash}
+        className="mt-4 w-full rounded-2xl bg-cream text-ink py-4 font-bold text-lg border-2 border-ink/10 active:bg-ink/5 flex items-center justify-center gap-3"
+      >
+        <span>💵</span> Pagar en efectivo
       </button>
     </div>
   );

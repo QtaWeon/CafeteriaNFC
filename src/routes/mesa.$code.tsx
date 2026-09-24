@@ -168,6 +168,19 @@ function MesaPage() {
     setPagando(false);
   }
 
+  async function handleCashPayment() {
+    if (pedido) {
+      await updateDoc(doc(db, "pedidos", pedido.id), {
+        cuenta_solicitada: true,
+        metodo_pago: "efectivo",
+        updated_at: new Date().toISOString()
+      });
+      qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa?.id] });
+      toast.success("Avisamos al mozo para cobrar en efectivo");
+    }
+    setPagando(false);
+  }
+
   const estado = (pedido?.estado ?? "pendiente") as Estado;
 
   const menuFiltrado = menu?.filter(item => {
@@ -310,6 +323,7 @@ function MesaPage() {
                   total={pedido.total}
                   onClose={() => setPagando(false)}
                   onSuccess={handlePaymentSuccess}
+                  onCash={handleCashPayment}
                 />
               </div>
             ) : (
