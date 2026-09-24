@@ -1,0 +1,792 @@
+================================================================================
+                    CAFÉNFC — DOCUMENTACIÓN COMPLETA DEL SISTEMA
+                           Dine & Tap / CaféNFC
+                           Última actualización: Septiembre 2026
+================================================================================
+
+ÍNDICE
+------
+  1. Descripción General del Sistema
+  2. Tecnologías Utilizadas
+  3. Arquitectura y Estructura de Archivos
+  4. Colecciones en Firebase Firestore (Base de Datos)
+  5. Flujo Completo del Sistema (paso a paso)
+  6. Módulo 1 — Pantalla de Inicio (/)
+  7. Módulo 2 — Menú Digital del Cliente (/mesa/$code)
+  8. Módulo 3 — Panel de Cocina / KDS (/cocina)
+  9. Módulo 4 — Panel de Administración (/panel)
+ 10. Componentes Reutilizables
+ 11. Biblioteca Compartida (src/lib/cafe.ts)
+ 12. Seguridad — Reglas de Firestore
+ 13. Flujo de Pagos (PaymentPanel)
+ 14. Datos de Transferencia del Titular
+ 15. Credenciales y PINs de Acceso
+ 16. Resumen de Toda la Información que Almacena el Sistema
+
+
+================================================================================
+1. DESCRIPCIÓN GENERAL DEL SISTEMA
+================================================================================
+
+CaféNFC es un sistema de pedidos sin contacto para cafeterías y restaurantes.
+Su propuesta central es reemplazar las cartas físicas y el proceso manual de
+toma de pedidos mediante:
+
+  - Stickers NFC físicos en cada mesa (o códigos QR equivalentes).
+  - Un menú digital interactivo accesible desde el celular del cliente.
+  - Un sistema de cocina (KDS) donde los pedidos llegan en tiempo real.
+  - Un panel administrativo para gestionar el menú, las mesas y ver métricas.
+  - Soporte para pagos via NFC, Mercado Pago, efectivo y transferencia bancaria.
+
+El sistema es una Progressive Web App (PWA) — funciona desde el navegador
+móvil sin necesidad de instalar ninguna aplicación.
+
+
+================================================================================
+2. TECNOLOGÍAS UTILIZADAS
+================================================================================
+
+FRONTEND:
+  - React 18 con TypeScript (.tsx)
+  - Vite (bundler/compilador de desarrollo)
+  - TanStack Router (enrutamiento de páginas/rutas)
+  - TanStack React Query (fetching de datos, caché y polling automático)
+  - Tailwind CSS (estilos, con colores personalizados en OKLCH)
+  - Recharts (gráficos en el dashboard de métricas)
+  - Sonner (notificaciones tipo toast)
+
+BACKEND / BASE DE DATOS:
+  - Firebase Firestore (base de datos NoSQL en la nube, en tiempo real)
+  - Firebase (sin autenticación actualmente; controlado por PINs en UI)
+
+DESPLIEGUE:
+  - Repositorio GitHub: https://github.com/QtaWeon/CafeteriaNFC
+  - La app puede desplegarse en Firebase Hosting, Vercel o Netlify.
+
+PAGOS:
+  - Web NFC API (navegador nativo, para celulares Android compatible)
+  - Mercado Pago (redirección a checkout externo)
+  - Efectivo / Transferencia bancaria (instrucciones manuales + link WhatsApp)
+
+
+================================================================================
+3. ARQUITECTURA Y ESTRUCTURA DE ARCHIVOS
+================================================================================
+
+dine-and-tap/
+├── firestore.rules                  → Reglas de seguridad de Firestore
+├── src/
+│   ├── main.tsx                     → Punto de entrada de la app React
+│   ├── router.tsx                   → Configuración del enrutador
+│   ├── routeTree.gen.ts             → Árbol de rutas autogenerado por TanStack
+│   ├── styles.css                   → Estilos globales, tokens de diseño
+│   ├── assets/                      → Imágenes del menú (cappuccino, coldbrew, etc.)
+│   ├── lib/
+│   │   ├── cafe.ts                  → Tipos, enums, utilidades compartidas
+│   │   └── firebase.ts              → Inicialización de Firebase / Firestore
+│   ├── routes/
+│   │   ├── __root.tsx               → Layout raíz (Toaster, etc.)
+│   │   ├── index.tsx                → Pantalla de inicio / selección de mesa
+│   │   ├── mesa.$code.tsx           → Menú del cliente (por código NFC)
+│   │   ├── cocina.tsx               → KDS — Panel de cocina
+│   │   └── panel.tsx                → Panel de administración
+│   └── components/
+│       ├── CategoryTabs.tsx         → Pestañas de categorías del menú
+│       ├── KanbanCard.tsx           → Tarjeta de comanda en el KDS
+│       ├── MenuManagement.tsx       → CRUD de productos del menú
+│       ├── MesaManager.tsx          → Alta/baja de mesas y códigos NFC
+│       ├── MetricsDashboard.tsx     → Gráficos y métricas del día
+│       └── PaymentPanel.tsx         → Panel de pago (NFC / MP / efectivo)
+
+
+================================================================================
+4. COLECCIONES EN FIREBASE FIRESTORE (BASE DE DATOS)
+================================================================================
+
+El sistema utiliza tres colecciones en Firestore:
+
+────────────────────────────────────────────────────────────────
+COLECCIÓN: "mesas"
+────────────────────────────────────────────────────────────────
+  Representa cada mesa física del local.
+
+  Campos de cada documento:
+    - id          (string)  → ID único generado por Firestore
+    - numero      (number)  → Número visible de la mesa (ej: 1, 2, 3...)
+    - nfc_code    (string)  → Identificador del sticker NFC (ej: "NFC001")
+
+  Ejemplo de documento:
+    {
+      "numero": 1,
+      "nfc_code": "NFC001"
+    }
+
+  Quién la usa:
+    - Pantalla de inicio: lista todas las mesas para simular el escaneo NFC.
+    - Menú del cliente: busca la mesa por nfc_code para conocer el número.
+    - Panel admin / MesaManager: permite crear y eliminar mesas.
+
+────────────────────────────────────────────────────────────────
+COLECCIÓN: "menu_items"
+────────────────────────────────────────────────────────────────
+  Representa cada producto disponible en el menú del local.
+
+  Campos de cada documento:
+    - id           (string)   → ID único generado por Firestore
+    - nombre       (string)   → Nombre del producto (ej: "Cappuccino")
+    - descripcion  (string)   → Descripción corta del producto
+    - precio       (number)   → Precio en guaraníes (ej: 12000)
+    - disponible   (boolean)  → Si se muestra o no en el menú del cliente
+    - categoria    (string)   → Una de: "cafe", "fria", "reposteria", "snack"
+    - imagen       (string)   → Clave de imagen (ej: "cappuccino", "coldbrew")
+    - opciones     (string[]) → Lista de personalizaciones opcionales
+                                (ej: ["Con leche", "Sin azúcar", "Grande"])
+    - orden        (number)   → Posición en el menú para ordenar productos
+
+  Ejemplo de documento:
+    {
+      "nombre": "Cappuccino",
+      "descripcion": "Espresso con leche vaporizada",
+      "precio": 12000,
+      "disponible": true,
+      "categoria": "cafe",
+      "imagen": "cappuccino",
+      "opciones": ["Grande", "Chico", "Sin azúcar"],
+      "orden": 1
+    }
+
+  Quién la usa:
+    - Menú del cliente: carga todos los items con disponible=true.
+    - Panel admin / MenuManagement: CRUD completo de productos.
+    - MetricsDashboard: analiza los items vendidos en pedidos históricos.
+
+────────────────────────────────────────────────────────────────
+COLECCIÓN: "pedidos"
+────────────────────────────────────────────────────────────────
+  Representa cada pedido realizado por un cliente desde su mesa.
+  Es la colección más importante del sistema.
+
+  Campos de cada documento:
+    - id               (string)   → ID único generado por Firestore
+    - mesa_id          (string)   → ID del documento de la mesa en Firestore
+    - mesa_numero      (number)   → Número de la mesa (para mostrar en KDS)
+    - nfc_code         (string)   → Código NFC de la mesa (para mostrar en KDS)
+    - estado           (string)   → Estado actual del pedido. Valores posibles:
+                                      "pendiente"  → recién enviado por cliente
+                                      "preparando" → aceptado por cocina
+                                      "listo"      → preparación terminada
+                                      "entregado"  → servido en la mesa
+                                      "finalizado" → mesa cerrada o pagado
+    - total            (number)   → Monto total del pedido en guaraníes
+    - items            (array)    → Lista de líneas del pedido (ver abajo)
+    - created_at       (string)   → Fecha/hora ISO del momento del pedido
+    - updated_at       (string)   → Fecha/hora ISO de la última actualización
+    - cuenta_solicitada (boolean) → True si el cliente pidió la cuenta
+    - metodo_pago      (string)   → "efectivo" cuando el cliente eligió esa opción
+    - pagado_nfc       (boolean)  → True si el pago se realizó vía NFC o digital
+
+  Subestructura de "items" (array de objetos):
+    Cada elemento del array representa una línea del pedido:
+      - menu_item_id    (string)  → ID del producto en "menu_items"
+      - nombre          (string)  → Nombre del producto al momento del pedido
+      - cantidad        (number)  → Unidades pedidas
+      - precio_unitario (number)  → Precio por unidad al momento del pedido
+      - personalizacion (string)  → Opción elegida (ej: "Sin azúcar", o vacío)
+
+  Ejemplo de documento completo:
+    {
+      "mesa_id": "abc123xyz",
+      "mesa_numero": 3,
+      "nfc_code": "NFC003",
+      "estado": "preparando",
+      "total": 27000,
+      "items": [
+        {
+          "menu_item_id": "item001",
+          "nombre": "Cappuccino",
+          "cantidad": 2,
+          "precio_unitario": 12000,
+          "personalizacion": "Sin azúcar"
+        },
+        {
+          "menu_item_id": "item002",
+          "nombre": "Croissant",
+          "cantidad": 1,
+          "precio_unitario": 3000,
+          "personalizacion": ""
+        }
+      ],
+      "created_at": "2026-09-23T22:30:00.000Z",
+      "updated_at": "2026-09-23T22:32:00.000Z",
+      "cuenta_solicitada": false,
+      "metodo_pago": null,
+      "pagado_nfc": false
+    }
+
+  Quién la usa:
+    - Menú del cliente: crea pedidos y consulta el estado del pedido activo.
+    - KDS Cocina: lee pedidos en estado pendiente/preparando/listo y los avanza.
+    - Panel Admin: muestra pedidos activos (todos excepto "finalizado").
+    - MetricsDashboard: analiza TODOS los pedidos históricos para métricas.
+
+
+================================================================================
+5. FLUJO COMPLETO DEL SISTEMA (PASO A PASO)
+================================================================================
+
+  PASO 1 — El cliente llega a la mesa
+    El cliente se sienta en una mesa del local. La mesa tiene un sticker NFC
+    pegado en ella. El cliente acerca su celular al sticker NFC.
+
+    En producción real: el sistema operativo del celular detecta el tag NFC
+    y abre automáticamente la URL del menú digital del local.
+
+    En la demo actual: la página de inicio (/) muestra todas las mesas
+    registradas. El cliente (o encargado) toca la mesa correspondiente para
+    simular ese escaneo.
+
+  PASO 2 — El sistema identifica la mesa
+    La URL generada tiene el formato: /mesa/NFC001 (usando el nfc_code).
+    Al abrir esa URL, la app consulta Firestore buscando en la colección
+    "mesas" el documento donde nfc_code == "NFC001".
+    Obtiene el número de mesa (ej: Mesa 1) y el ID interno del documento.
+
+  PASO 3 — El cliente navega el menú
+    La app carga todos los productos de la colección "menu_items" donde
+    disponible == true, ordenados por el campo "orden".
+    El cliente puede filtrar por categoría (Cafés / Bebidas Frías /
+    Repostería / Snacks) y también buscar por nombre o descripción.
+    Puede seleccionar personalizaciones (opciones) para cada producto.
+
+  PASO 4 — El cliente arma su carrito
+    Al tocar "Agregar +", el ítem se agrega al carrito local (en memoria,
+    no en Firestore todavía). El carrito muestra subtotales y el total final.
+    El cliente puede quitar ítems con el botón (✕).
+
+  PASO 5 — El cliente confirma el pedido a la cocina
+    Al tocar "Confirmar a Cocina →", la app crea un nuevo documento en la
+    colección "pedidos" de Firestore con estado = "pendiente".
+    El carrito se vacía y se muestra una barra de progreso del pedido.
+
+  PASO 6 — La cocina recibe el pedido (KDS)
+    En la pantalla de cocina (/cocina), el panel se refresca automáticamente
+    cada 3 segundos consultando Firestore.
+    El pedido nuevo aparece en la columna "Nuevos" (estado: pendiente).
+    Si el pedido lleva más de 5 minutos sin ser atendido, la tarjeta
+    se pone en rojo como alerta visual.
+
+  PASO 7 — La cocina avanza el pedido
+    El barista/cocinero toca el botón grande de la tarjeta:
+      "ACEPTAR"   → cambia estado a "preparando" (columna central)
+      "LISTO"     → cambia estado a "listo" (columna derecha)
+      "SERVIR"    → cambia estado a "entregado" (desaparece del KDS)
+
+    Cada cambio actualiza el documento en Firestore con el nuevo estado
+    y la fecha/hora actual en "updated_at".
+
+  PASO 8 — El cliente ve el estado en tiempo real
+    En la vista del menú (/mesa/$code), la barra de progreso del pedido
+    activo se actualiza cada 4 segundos. El cliente puede ver si su pedido
+    está "Pendiente", "Preparando", "Listo" o "Servido" sin necesidad
+    de hablar con nadie.
+
+  PASO 9 — El cliente paga
+    El cliente toca el botón "Pagar Cuenta" en la parte superior.
+    Aparece el PaymentPanel con tres opciones:
+
+    OPCIÓN A — NFC / Tap to Pay:
+      Si el celular del cliente soporta Web NFC (Chrome en Android),
+      el sistema activa el lector NFC. El cliente apoya su tarjeta o
+      dispositivo NFC contra el lector del local.
+      Al detectar el tag, el pedido se actualiza a estado "finalizado"
+      con pagado_nfc = true.
+
+    OPCIÓN B — Mercado Pago:
+      Si el celular no soporta NFC o el cliente prefiere pagar online,
+      aparece la pantalla de Mercado Pago. Al tocar el botón, se abre
+      la web de Mercado Pago en una nueva pestaña.
+      El titular configura su link de pago real en la variable de la app.
+
+    OPCIÓN C — Efectivo o Transferencia:
+      Se muestra la pantalla con los datos bancarios:
+        Titular: Giovanni Portillo
+        Documento / Alias: 6670901
+        WhatsApp para comprobante: 0992 351 545 (con link directo)
+      El cliente puede tocar el número de WhatsApp para abrir un chat
+      prearmado con el texto del comprobante y el monto a pagar.
+      Al confirmar, el pedido se actualiza con:
+        cuenta_solicitada = true
+        metodo_pago = "efectivo"
+      Esto avisa visualmente al mozo en el KDS.
+
+  PASO 10 — Cierre de mesa
+    El admin o el mozo puede marcar el pedido como "CERRAR MESA" desde
+    el panel de administración (/panel → Pedidos Activos), lo que cambia
+    el estado a "finalizado" y lo saca de las vistas activas.
+
+
+================================================================================
+6. MÓDULO 1 — PANTALLA DE INICIO (/)
+================================================================================
+
+  Archivo: src/routes/index.tsx
+
+  Propósito:
+    Página principal y pública del sistema. Sirve como simulador del escaneo
+    NFC para demos o para entornos donde los stickers físicos no están listos.
+
+  Datos que carga:
+    - Colección "mesas" completa, ordenada por número ascendente.
+
+  Funcionalidad:
+    - Muestra una grilla con todas las mesas registradas en Firestore.
+    - Cada tarjeta de mesa muestra: número de mesa, código NFC, y un botón
+      "Escanear ↗" que navega a /mesa/[nfc_code].
+    - En el footer muestra todos los códigos NFC activos del sistema.
+    - Animaciones flotantes (blobs de color) como decoración.
+
+  No requiere autenticación.
+
+
+================================================================================
+7. MÓDULO 2 — MENÚ DIGITAL DEL CLIENTE (/mesa/$code)
+================================================================================
+
+  Archivo: src/routes/mesa.$code.tsx
+
+  Propósito:
+    Interfaz principal del cliente. Es la pantalla que se abre cuando el
+    cliente escanea el sticker NFC de su mesa.
+
+  Parámetro de ruta:
+    $code → El código NFC de la mesa (ej: "NFC001")
+
+  Datos que carga:
+    1. Colección "mesas" filtrada por nfc_code == $code (para obtener mesa_id)
+    2. Colección "menu_items" filtrada por disponible == true
+    3. Colección "pedidos" filtrada por mesa_id y estado != "finalizado"
+       (polling cada 4 segundos para ver el estado en tiempo real)
+
+  Estado local (no en Firestore):
+    - carrito: array de LineaCarrito (items seleccionados con cantidades)
+    - opciones: objeto con la personalización seleccionada por producto
+    - categoria: filtro activo de categoría ("todas" | "cafe" | "fria" | ...)
+    - busqueda: texto del buscador en tiempo real
+    - pagando: booleano que muestra/oculta el PaymentPanel
+    - enviando: booleano durante el envío del pedido a Firestore
+
+  Funciones principales:
+    agregar(item):
+      Agrega un producto al carrito local. Si el mismo producto con la misma
+      personalización ya existe, incrementa la cantidad.
+      Muestra un toast de confirmación.
+
+    quitar(index):
+      Elimina una línea del carrito por su posición.
+
+    enviarPedido():
+      Crea un nuevo documento en la colección "pedidos" con:
+        - mesa_id, mesa_numero, nfc_code
+        - total calculado (suma de precio × cantidad de cada línea)
+        - estado = "pendiente"
+        - items con nombre, cantidad, precio_unitario, personalizacion
+        - created_at y updated_at con timestamp ISO actual
+      Luego limpia el carrito y dispara el refetch del pedido activo.
+
+    pedirCuenta():
+      Actualiza el pedido activo en Firestore con cuenta_solicitada = true.
+      Esto muestra un aviso en el KDS de cocina.
+
+    handlePaymentSuccess():
+      Actualiza el pedido activo con estado = "finalizado" y pagado_nfc = true.
+      Cierra el PaymentPanel.
+
+    handleCashPayment():
+      Actualiza el pedido activo con:
+        cuenta_solicitada = true
+        metodo_pago = "efectivo"
+      Cierra el PaymentPanel y muestra toast de aviso al mozo.
+
+  Filtrado del menú:
+    El array de menu_items se filtra en el cliente (sin consulta extra a
+    Firestore) combinando:
+      - Categoría activa (igualdad exacta de campo "categoria")
+      - Texto de búsqueda (coincidencia parcial en nombre y descripción)
+
+  Layout:
+    - Header: logo CaféNFC, nombre de mesa, botón "Pagar Cuenta"
+    - Columna izquierda (7/12): buscador + CategoryTabs + grilla de productos
+    - Columna derecha (5/12): carrito sticky + barra de progreso del pedido
+    - Cuando pagando=true: PaymentPanel reemplaza al carrito (con animación)
+
+
+================================================================================
+8. MÓDULO 3 — PANEL DE COCINA / KDS (/cocina)
+================================================================================
+
+  Archivo: src/routes/cocina.tsx
+  Componente: src/components/KanbanCard.tsx
+
+  Propósito:
+    Pantalla de uso exclusivo del personal de cocina/barra. Muestra los
+    pedidos en tiempo real y permite avanzar su estado con un solo toque.
+
+  Acceso:
+    Protegido por PIN: 5678
+    El PIN se guarda en localStorage ("cafe_cocina_pin") para no pedirlo
+    en cada recarga. El diseño de la pantalla de PIN es oscuro (sobre fondo
+    negro) para diferenciarse del resto del sistema.
+
+  Datos que carga:
+    - Colección "pedidos" filtrada por estado IN ["pendiente", "preparando", "listo"]
+    - Polling automático cada 3 segundos (refetchInterval: 3000)
+    - Ordenada por created_at ascendente (el más antiguo primero)
+
+  Layout — tres columnas Kanban:
+    COLUMNA 1 — "Nuevos" (estado: pendiente)    → fondo amarillo (--sun)
+    COLUMNA 2 — "En Preparación" (estado: preparando) → fondo teal
+    COLUMNA 3 — "Listos para Servir" (estado: listo)  → fondo verde (--sage)
+
+  Función avanzar(id, estado):
+    Calcula el siguiente estado usando el mapa siguienteEstado de cafe.ts:
+      pendiente   → preparando
+      preparando  → listo
+      listo       → entregado (desaparece del KDS, aparece en admin)
+    Actualiza el documento en Firestore con el nuevo estado y updated_at.
+
+  Componente KanbanCard:
+    Cada tarjeta muestra:
+      - Número de mesa y código NFC
+      - Cronómetro en tiempo real (MM:SS desde created_at)
+        → Si el pedido en estado "pendiente" supera los 5 minutos,
+          la tarjeta se pone roja como alerta de demora
+      - Lista de ítems con cantidades y personalizaciones
+      - Banner amarillo "🧾 Cliente pide la cuenta" si cuenta_solicitada = true
+      - Botón grande de acción:
+          "ACEPTAR" (amarillo)  → para pedidos pendientes
+          "LISTO"   (teal)      → para pedidos en preparación
+          "SERVIR"  (verde)     → para pedidos listos
+
+
+================================================================================
+9. MÓDULO 4 — PANEL DE ADMINISTRACIÓN (/panel)
+================================================================================
+
+  Archivo: src/routes/panel.tsx
+  Componentes: MenuManagement.tsx, MesaManager.tsx, MetricsDashboard.tsx
+
+  Propósito:
+    Centro de control del negocio. Gestión completa del menú, mesas y
+    visualización de métricas operativas.
+
+  Acceso:
+    Protegido por PIN: 2403
+    El PIN se guarda en localStorage ("cafe_admin_pin").
+    Incluye botón "Salir" que borra el PIN del localStorage.
+
+  Navegación interna — 4 pestañas:
+
+  ── PESTAÑA 1: 📈 Métricas ──────────────────────────────────────────────────
+    Componente: MetricsDashboard.tsx
+    Datos: Carga TODOS los documentos de la colección "pedidos" (histórico).
+
+    Indicadores en tiempo real (filtra por fecha del día actual):
+      - Total de ventas del día en guaraníes
+      - Cantidad de pedidos del día
+
+    Gráfico 1 — BarChart (Recharts):
+      "Pedidos por Hora (Hoy)"
+      Datos: agrupa los pedidos de hoy por hora (0:00, 1:00, ... 23:00)
+      Eje X: hora del día. Eje Y: cantidad de pedidos.
+
+    Gráfico 2 — PieChart / Donut (Recharts):
+      "Top 5 Productos Histórico"
+      Datos: cruza TODOS los pedidos históricos, suma las cantidades
+      vendidas de cada producto y toma el top 5.
+      Incluye leyenda de colores debajo del gráfico.
+
+  ── PESTAÑA 2: 📋 Pedidos Activos ───────────────────────────────────────────
+    Datos: Carga pedidos donde estado != "finalizado". Polling cada 4s.
+    Muestra una grilla de tarjetas con:
+      - Número de mesa y código NFC
+      - Lista de ítems y personalizaciones
+      - Total del pedido
+      - Indicador de estado con color
+      - Badge "🧾 Pide la cuenta" si corresponde
+      - Botón de avanzar estado (igual que el KDS pero más analítico)
+
+  ── PESTAÑA 3: 🍔 Menú ──────────────────────────────────────────────────────
+    Componente: MenuManagement.tsx
+    CRUD completo de los productos del menú:
+
+    LISTAR: Lee todos los documentos de "menu_items".
+    CREAR: Formulario con campos:
+      - Nombre (obligatorio)
+      - Descripción
+      - Precio en guaraníes (obligatorio, numérico)
+      - Categoría: selección entre "cafe", "fria", "reposteria", "snack"
+      - Imagen: selección entre cappuccino, coldbrew, croissant, sandwich
+      - Disponible: toggle true/false
+      - Opciones de personalización: input de texto separadas por comas
+    EDITAR: Inline, pre-rellena todos los campos del producto.
+    ELIMINAR: Borra el documento de Firestore.
+    ACTIVAR/DESACTIVAR: Toggle de disponibilidad sin eliminar el producto.
+
+  ── PESTAÑA 4: 📡 Mesas & NFC ───────────────────────────────────────────────
+    Componente: MesaManager.tsx
+    CRUD de mesas:
+
+    LISTAR: Lee todos los documentos de "mesas", ordenados por número.
+    CREAR: Formulario con campos:
+      - Número de Mesa (number, obligatorio)
+      - Código NFC (string, obligatorio, ej: "NFC005")
+    ELIMINAR: Borra el documento de Firestore previa confirmación.
+
+  Header del panel:
+    - Botón "Salir" → cierra sesión borrando el PIN del localStorage
+    - Botón "Ver KDS (Cocina)" → navega a /cocina
+
+
+================================================================================
+10. COMPONENTES REUTILIZABLES
+================================================================================
+
+  ── CategoryTabs.tsx ────────────────────────────────────────────────────────
+    Props:
+      - activa: Categoria | "todas"  → categoría seleccionada actualmente
+      - onChange: función            → callback al cambiar de categoría
+
+    Categorías disponibles con sus emojis:
+      "todas"      → 🍽️ Todo
+      "cafe"       → ☕ Cafés
+      "fria"       → 🧊 Bebidas Frías
+      "reposteria" → 🥐 Repostería
+      "snack"      → 🥪 Snacks
+
+    Los botones activos se pintan con bg-brand (color principal).
+    Scroll horizontal en mobile (scrollbar oculta).
+
+  ── KanbanCard.tsx ──────────────────────────────────────────────────────────
+    Props:
+      - pedido: object   → documento de Firestore de un pedido
+      - onAvanzar: func  → callback (id, estado) para avanzar el pedido
+
+    Interno:
+      Tiene su propio intervalo de 1 segundo para actualizar el cronómetro
+      "elapsed" desde created_at hasta ahora. Calcula minutos y segundos.
+      Si elapsed > 5 min y estado == "pendiente": aplica clases de alerta roja.
+
+  ── PaymentPanel.tsx ────────────────────────────────────────────────────────
+    Props:
+      - total: number       → monto base del pedido
+      - onSuccess: func     → callback cuando el pago digital se completa
+      - onCash: func        → callback cuando el cliente elige efectivo/transferencia
+      - onClose: func       → callback para cerrar el panel
+
+    Estados internos:
+      "idle"         → pantalla de selección de propina + opciones de pago
+      "reading"      → esperando lectura NFC del dispositivo del cliente
+      "success"      → animación de pago exitoso
+      "mp_fallback"  → pantalla de Mercado Pago (cuando no hay NFC)
+      "transferencia"→ pantalla con datos bancarios del titular
+
+    Cálculo de propina:
+      El cliente selecciona 0%, 5%, 10% o 15%.
+      total final = total + (total × porcentaje / 100)
+
+  ── MenuManagement.tsx ──────────────────────────────────────────────────────
+    Maneja su propio estado de formulario local.
+    Operaciones Firestore:
+      - getDocs (listar)
+      - addDoc (crear)
+      - updateDoc (editar, activar/desactivar)
+      - deleteDoc (eliminar)
+
+  ── MesaManager.tsx ─────────────────────────────────────────────────────────
+    Maneja su propio estado de formulario local.
+    Operaciones Firestore:
+      - getDocs (listar)
+      - addDoc (crear)
+      - deleteDoc (eliminar)
+
+  ── MetricsDashboard.tsx ────────────────────────────────────────────────────
+    Solo lectura. No escribe nada en Firestore.
+    Usa Recharts: BarChart (barras) y PieChart (dona/donut).
+    Toda la lógica de agrupación y cálculo es en memoria (JavaScript puro),
+    no requiere queries adicionales a Firestore.
+
+
+================================================================================
+11. BIBLIOTECA COMPARTIDA (src/lib/cafe.ts)
+================================================================================
+
+  TIPOS:
+    type Estado = "pendiente" | "preparando" | "listo" | "entregado" | "finalizado"
+    type Categoria = "cafe" | "fria" | "reposteria" | "snack"
+
+  FUNCIONES:
+    gs(valor: number) → string
+      Formatea un número como guaraníes:
+      Ej: gs(12000) → "Gs 12.000"
+
+    imagenDe(key: string) → string
+      Devuelve la imagen importada correspondiente a una clave.
+      Claves disponibles: "cappuccino", "coldbrew", "croissant", "sandwich"
+      Si la clave no existe, devuelve la imagen de cappuccino por defecto.
+
+    formatHora(isoString: string) → string
+      Formatea un timestamp ISO en hora local Paraguay:
+      Ej: "2026-09-23T22:30:00Z" → "19:30"
+
+  MAPAS DE DATOS:
+    estadoLabel: mapea Estado → texto en español para mostrar al usuario
+    estadoDot:   mapea Estado → clase CSS del color del indicador circular
+    siguienteEstado: mapea Estado → Estado (el siguiente en el flujo)
+    accionLabel: mapea Estado → texto del botón de acción (ACEPTAR, LISTO, etc.)
+    categoriaLabel: mapea Categoria → texto en español
+    categoriaEmoji: mapea Categoria → emoji representativo
+    menuImages:  mapea clave string → imagen importada (para el menú)
+
+
+================================================================================
+12. SEGURIDAD — REGLAS DE FIRESTORE (firestore.rules)
+================================================================================
+
+  Colección "mesas":
+    - LEER: permitido para todos (público).
+    - CREAR: solo si el documento contiene los campos "numero" (number)
+             y "nfc_code" (string). Validación de tipos en Firestore.
+    - ACTUALIZAR / ELIMINAR: permitido (en producción requeriría auth admin).
+
+  Colección "menu_items":
+    - LEER: permitido para todos (público).
+    - CREAR / ACTUALIZAR: solo si el documento contiene "nombre" y "precio"
+                          y el campo "precio" es de tipo number.
+    - ELIMINAR: permitido.
+
+  Colección "pedidos":
+    - LEER: permitido para todos.
+    - CREAR: solo si el documento contiene los campos "mesa_id", "total",
+             "estado" e "items", el campo "estado" es exactamente "pendiente"
+             y el campo "total" es de tipo number.
+             Esto impide crear pedidos con estados inventados o sin datos.
+    - ACTUALIZAR: permitido (permite a la cocina avanzar estados y al
+                  cliente marcar pagos o pedir la cuenta).
+    - ELIMINAR: denegado para todos.
+
+  NOTA: El sistema actualmente no usa Firebase Authentication. Los controles
+  de acceso de la UI (PINs) son solo del lado del cliente. Para un entorno
+  de producción serio, se recomienda implementar Firebase Auth y reforzar
+  las reglas de Firestore con condiciones basadas en request.auth.
+
+
+================================================================================
+13. FLUJO DE PAGOS (PaymentPanel)
+================================================================================
+
+  Al tocar "Pagar Cuenta" en el menú del cliente:
+
+  ┌─────────────────────────────────────────────────────┐
+  │         PaymentPanel — Estado: "idle"               │
+  │  Selector de propina: 0% / 5% / 10% / 15%          │
+  │  Total mostrado: base + propina                     │
+  │                                                     │
+  │  [📡 Tap to Pay]        [💵 Efectivo / Transferencia]│
+  └─────────────────────────────────────────────────────┘
+             │                           │
+    ┌────────▼──────────┐     ┌──────────▼─────────────────┐
+    │  ¿NDEFReader       │     │  Estado: "transferencia"   │
+    │  en window?        │     │  Datos bancarios del local │
+    └────────┬───────────┘     │  Titular: Giovanni Portillo│
+             │ SÍ              │  Alias/CI: 6670901         │
+    ┌────────▼──────────┐     │  WhatsApp: 0992 351 545    │
+    │ Estado: "reading" │     │  [Avisar al mozo]          │
+    │ Activa NDEFReader │     └────────────────────────────┘
+    │ .scan()           │                 │
+    └────────┬──────────┘          (onCash callback)
+             │ (evento "reading")         │
+             │ (o error/no soportado)     ▼
+    ┌────────▼───────────┐    Firebase: cuenta_solicitada=true
+    │  ¿Lectura exitosa? │              metodo_pago="efectivo"
+    └────────┬───────────┘
+             │ SÍ → Estado: "success"
+             │     Firebase: estado="finalizado", pagado_nfc=true
+             │
+             │ NO → Estado: "mp_fallback"
+             ▼
+  ┌──────────────────────────────┐
+  │  Pantalla Mercado Pago       │
+  │  Logo MP (celeste #009EE3)   │
+  │  [Pagar Gs. X en MP]        │
+  │  Abre www.mercadopago.com   │
+  │  (reemplazar por link real) │
+  │  [Efectivo / Transferencia] │
+  └──────────────────────────────┘
+
+
+================================================================================
+14. DATOS DE TRANSFERENCIA DEL TITULAR
+================================================================================
+
+  Nombre del titular:  Giovanni Portillo
+  Documento / Alias:   6670901  (número de cédula)
+  Número de WhatsApp:  0992 351 545
+  Código de país:      +595 (Paraguay)
+
+  El link de WhatsApp generado automáticamente es:
+    https://wa.me/595992351545?text=Hola,%20acá%20está%20el%20comprobante%20de%20mi%20pedido%20por%20[MONTO]
+
+  El monto en el mensaje es dinámico, se calcula con el total del pedido
+  más la propina que el cliente seleccionó.
+
+
+================================================================================
+15. CREDENCIALES Y PINs DE ACCESO
+================================================================================
+
+  Panel de Administración (/panel):
+    PIN: 2403
+    Almacenamiento: localStorage con clave "cafe_admin_pin"
+    Para salir: botón "Salir" en el header (borra el localStorage)
+
+  Panel de Cocina — KDS (/cocina):
+    PIN: 5678
+    Almacenamiento: localStorage con clave "cafe_cocina_pin"
+
+  Menú del cliente (/mesa/$code):
+    No requiere PIN. Acceso público con URL que contiene el código NFC.
+
+  IMPORTANTE: En producción, reemplazar estos PINs por Firebase Authentication.
+
+
+================================================================================
+16. RESUMEN DE TODA LA INFORMACIÓN QUE ALMACENA EL SISTEMA
+================================================================================
+
+  EN FIRESTORE (nube, persistente, en tiempo real):
+    ┌──────────────┬─────────────────────────────────────────────────────────┐
+    │ Colección    │ Qué almacena                                            │
+    ├──────────────┼─────────────────────────────────────────────────────────┤
+    │ mesas        │ Número de mesa y código NFC de cada sticker             │
+    │ menu_items   │ Nombre, precio, categoría, opciones de cada producto    │
+    │ pedidos      │ Todos los pedidos: ítems, totales, estados, timestamps  │
+    └──────────────┴─────────────────────────────────────────────────────────┘
+
+  EN LOCALSTORAGE DEL NAVEGADOR (local, por dispositivo):
+    ┌──────────────────────┬──────────────────────────────────────────────────┐
+    │ Clave                │ Valor                                            │
+    ├──────────────────────┼──────────────────────────────────────────────────┤
+    │ cafe_admin_pin       │ "2403" (si el admin inició sesión)               │
+    │ cafe_cocina_pin      │ "5678" (si cocina inició sesión)                 │
+    └──────────────────────┴──────────────────────────────────────────────────┘
+
+  EN MEMORIA DEL NAVEGADOR (efímero, se pierde al recargar):
+    - El carrito del cliente (array de LineaCarrito)
+    - Las personalizaciones seleccionadas por producto
+    - El estado de los filtros de categoría y búsqueda del menú
+    - El estado actual del PaymentPanel (idle, reading, success, etc.)
+
+
+================================================================================
+                             FIN DE LA DOCUMENTACIÓN
+================================================================================
