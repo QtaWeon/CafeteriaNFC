@@ -1,18 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Mesas: lectura pública (necesaria para el cliente). 
+    // Creación requiere los campos obligatorios.
     match /mesas/{mesaId} {
       allow read: if true;
-      allow write: if false; // Solo lectura para seguridad
+      allow create: if request.resource.data.keys().hasAll(['numero', 'nfc_code']) 
+                    && request.resource.data.numero is number
+                    && request.resource.data.nfc_code is string;
+      allow update, delete: if true; // En un entorno real, esto requeriría auth admin.
     }
+    
+    // Menú: lectura pública. Escritura requiere formato correcto.
     match /menu_items/{itemId} {
       allow read: if true;
-      allow write: if true; // Escritura permitida para Administrar Menú desde el panel
+      allow create, update: if request.resource.data.keys().hasAll(['nombre', 'precio']) 
+                            && request.resource.data.precio is number;
+      allow delete: if true;
     }
+    
+    // Pedidos: el cliente puede crearlos solo en estado "pendiente".
+    // Pueden actualizarse pero no eliminarse.
     match /pedidos/{pedidoId} {
       allow read: if true;
-      allow create: if true;
-      allow update: if true;
+      allow create: if request.resource.data.keys().hasAll(['mesa_id', 'total', 'estado', 'items'])
+                    && request.resource.data.estado == 'pendiente'
+                    && request.resource.data.total is number;
+      allow update: if true; // Permite a la cocina cambiar estado y al cliente pagar
       allow delete: if false;
     }
   }

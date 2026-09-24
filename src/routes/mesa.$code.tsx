@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { gs, imagenDe, estadoLabel, type Estado } from "@/lib/cafe";
+import { gs, imagenDe, estadoLabel, type Estado, type Categoria } from "@/lib/cafe";
 import { toast } from "sonner";
+import { CategoryTabs } from "@/components/CategoryTabs";
+import { PaymentPanel } from "@/components/PaymentPanel";
 
 export const Route = createFileRoute("/mesa/$code")({
   head: () => ({
@@ -13,11 +15,6 @@ export const Route = createFileRoute("/mesa/$code")({
       {
         name: "description",
         content: "Menú digital de la mesa: elegí productos, personalizá y seguí el estado del pedido.",
-      },
-      { property: "og:title", content: "Tu mesa — CaféNFC" },
-      {
-        property: "og:description",
-        content: "Elegí productos, personalizá y seguí el estado de tu pedido en vivo.",
       },
     ],
   }),
@@ -38,6 +35,10 @@ function MesaPage() {
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
   const [opciones, setOpciones] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  
+  const [categoria, setCategoria] = useState<Categoria | "todas">("todas");
+  const [busqueda, setBusqueda] = useState("");
+  const [pagando, setPagando] = useState(false);
 
   const { data: mesa } = useQuery({
     queryKey: ["mesa", code],
@@ -72,7 +73,6 @@ function MesaPage() {
       const snapshot = await getDocs(q);
       const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
       
-      // Filtrar localmente por mesa_id y ordenar por fecha descendente
       const activosMesa = docs
         .filter((d) => d.mesa_id === mesa!.id)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -155,7 +155,26 @@ function MesaPage() {
     toast.success("Avisamos al mozo");
   }
 
+  async function handlePaymentSuccess() {
+    if (pedido) {
+      await updateDoc(doc(db, "pedidos", pedido.id), {
+        estado: "finalizado",
+        pagado_nfc: true,
+        updated_at: new Date().toISOString()
+      });
+      qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa?.id] });
+      toast.success("¡Pago exitoso! Gracias por venir.");
+    }
+    setPagando(false);
+  }
+
   const estado = (pedido?.estado ?? "pendiente") as Estado;
+
+  const menuFiltrado = menu?.filter(item => {
+    const matchCat = categoria === "todas" || item.categoria === categoria;
+    const matchSearch = busqueda === "" || item.nombre.toLowerCase().includes(busqueda.toLowerCase()) || (item.descripcion || "").toLowerCase().includes(busqueda.toLowerCase());
+    return matchCat && matchSearch;
+  });
 
   return (
     <div className="min-h-screen bg-cream text-ink font-body relative overflow-hidden">
@@ -169,7 +188,7 @@ function MesaPage() {
       />
 
       <div className="max-w-6xl mx-auto px-6 py-8 relative">
-        <header className="flex items-center justify-between gap-4 flex-wrap">
+        <header className="flex items-center justify-between gap-4 flex-wrap mb-10">
           <Link to="/" className="flex items-center gap-3">
             <span className="size-14 rounded-2xl bg-brand grid place-items-center text-2xl shadow-[5px_5px_0_var(--ink)]">
               ☕
@@ -177,7 +196,7 @@ function MesaPage() {
             <div>
               <p className="font-display font-bold text-3xl leading-none">CaféNFC</p>
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-ink/50">
-                Menú y pedidos inteligentes
+                Menú digital
               </p>
             </div>
           </Link>
@@ -189,172 +208,182 @@ function MesaPage() {
               <div className="leading-tight">
                 <p className="text-[10px] uppercase tracking-wider text-cream/60">Tu mesa</p>
                 <p className="font-display font-semibold">
-                  {mesa ? `Mesa ${mesa.numero} · ${mesa.nfc_code}` : "Buscando…"}
+                  {mesa ? `Mesa ${mesa.numero}` : "Buscando…"}
                 </p>
               </div>
             </div>
             <button
-              onClick={pedirCuenta}
+              onClick={() => pedido ? setPagando(true) : pedirCuenta()}
               className="rounded-2xl bg-sun px-5 py-3 font-display font-semibold shadow-[4px_4px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
             >
-              Solicitar cuenta
+              Pagar Cuenta
             </button>
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-12 gap-8 mt-10">
+        <div className="grid lg:grid-cols-12 gap-8">
           <section className="lg:col-span-7">
-            <div className="flex items-end justify-between mb-5">
-              <h2 className="font-display font-bold text-5xl">
-                Elegí tu <span className="text-brand">pedido</span>
-              </h2>
-              <span className="rounded-full bg-teal text-cream text-xs font-bold px-3 py-1">
-                Menú digital
-              </span>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              {menu?.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-3xl bg-white p-4 shadow-[6px_6px_0_var(--ink)] border-2 border-ink/5"
-                >
-                  <img
-                    src={imagenDe(item.imagen)}
-                    alt={item.nombre}
-                    loading="lazy"
-                    width={816}
-                    height={816}
-                    className="w-full aspect-square rounded-2xl object-cover"
+            <div className="mb-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 className="font-display font-bold text-5xl">
+                  Nuestro <span className="text-brand">menú</span>
+                </h2>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/40">🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar producto..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="w-full sm:w-64 bg-white rounded-2xl py-3 pl-10 pr-4 outline-none border-2 border-ink/10 focus:border-brand shadow-[4px_4px_0_var(--ink)]"
                   />
-                  <div className="mt-3 flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-display font-semibold text-lg">{item.nombre}</p>
-                      <p className="text-sm text-ink/50">{item.descripcion}</p>
-                    </div>
-                    <p className="font-display font-bold text-brand whitespace-nowrap">
-                      {gs(item.precio)}
-                    </p>
-                  </div>
-                  {item.opciones.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {item.opciones.map((op) => {
-                        const activa = opciones[item.id] === op;
-                        return (
-                          <button
-                            key={op}
-                            onClick={() =>
-                              setOpciones((prev) => ({ ...prev, [item.id]: activa ? "" : op }))
-                            }
-                            className={`text-xs rounded-full px-2.5 py-1 ${
-                              activa ? "bg-brand text-cream font-semibold" : "bg-cream"
-                            }`}
-                          >
-                            {op}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => agregar(item)}
-                    className="mt-4 w-full rounded-2xl bg-sun py-3 font-display font-semibold shadow-[3px_3px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                  >
-                    Agregar +
-                  </button>
                 </div>
-              ))}
+              </div>
+              
+              <CategoryTabs activa={categoria} onChange={setCategoria} />
             </div>
+
+            {menuFiltrado?.length === 0 ? (
+              <div className="text-center py-10 bg-white/50 rounded-3xl border-2 border-dashed border-ink/20">
+                <p className="text-xl">No encontramos productos 😢</p>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {menuFiltrado?.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-3xl bg-white p-4 shadow-[6px_6px_0_var(--ink)] border-2 border-ink/5 flex flex-col"
+                  >
+                    <img
+                      src={imagenDe(item.imagen)}
+                      alt={item.nombre}
+                      loading="lazy"
+                      className="w-full aspect-square rounded-2xl object-cover"
+                    />
+                    <div className="mt-3 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-display font-semibold text-lg leading-tight">{item.nombre}</p>
+                        <p className="text-sm text-ink/50 leading-snug">{item.descripcion}</p>
+                      </div>
+                      <p className="font-display font-bold text-brand whitespace-nowrap">
+                        {gs(item.precio)}
+                      </p>
+                    </div>
+                    {item.opciones && item.opciones.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {item.opciones.map((op: string) => {
+                          const activa = opciones[item.id] === op;
+                          return (
+                            <button
+                              key={op}
+                              onClick={() =>
+                                setOpciones((prev) => ({ ...prev, [item.id]: activa ? "" : op }))
+                              }
+                              className={`text-xs rounded-full px-2.5 py-1 ${
+                                activa ? "bg-brand text-cream font-semibold" : "bg-cream"
+                              }`}
+                            >
+                              {op}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => agregar(item)}
+                      className="mt-auto pt-4"
+                    >
+                      <div className="w-full rounded-2xl bg-sun py-3 font-display font-semibold shadow-[3px_3px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-transform hover:-translate-y-1 hover:shadow-[4px_4px_0_var(--ink)] text-center text-ink">
+                        Agregar +
+                      </div>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
-          <aside className="lg:col-span-5">
-            <div className="rounded-[28px] bg-ink text-cream p-6 shadow-[8px_8px_0_var(--brand)]">
-              <div className="flex items-center justify-between">
-                <h3 className="font-display font-bold text-2xl">Tu pedido</h3>
-                <span className="bg-brand rounded-full size-8 grid place-items-center font-bold">
-                  {cantidad}
-                </span>
+          <aside className="lg:col-span-5 space-y-6">
+            {pagando && pedido ? (
+              <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                <PaymentPanel
+                  total={pedido.total}
+                  onClose={() => setPagando(false)}
+                  onSuccess={handlePaymentSuccess}
+                />
               </div>
-              <ul className="mt-4 space-y-3">
-                {carrito.length === 0 && (
-                  <li className="text-sm text-cream/50 bg-white/5 rounded-2xl px-4 py-3">
-                    Todavía no agregaste nada.
-                  </li>
-                )}
-                {carrito.map((l, i) => (
-                  <li
-                    key={`${l.menu_item_id}-${l.personalizacion}`}
-                    className="flex justify-between items-center bg-white/5 rounded-2xl px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-semibold">
-                        {l.cantidad} × {l.nombre}
-                      </p>
-                      {l.personalizacion && (
-                        <p className="text-xs text-cream/50">{l.personalizacion}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="font-display font-semibold">{gs(l.precio * l.cantidad)}</p>
-                      <button
-                        onClick={() => quitar(i)}
-                        aria-label="Quitar"
-                        className="text-cream/40 hover:text-brand"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4 flex justify-between items-end border-t border-white/15 pt-4">
-                <p className="text-cream/60 text-sm">Total</p>
-                <p className="font-display font-bold text-4xl text-sun">{gs(total)}</p>
-              </div>
-              <button
-                onClick={enviarPedido}
-                disabled={carrito.length === 0 || enviando}
-                className="mt-5 w-full rounded-2xl bg-brand py-4 font-display font-bold text-xl shadow-[4px_4px_0_var(--sun)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40"
-              >
-                Enviar pedido →
-              </button>
-              <div className="mt-4 flex items-center gap-2 text-sm text-cream/70">
-                <span className="size-3 rounded-full bg-sun" />
-                {pedido
-                  ? `Pedido ${estadoLabel[estado].toLowerCase()} · Mesa ${mesa?.numero}`
-                  : "Sin pedidos activos"}
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-[28px] bg-white p-5 shadow-[6px_6px_0_var(--ink)] border-2 border-ink/5">
-              <p className="text-xs font-bold uppercase tracking-widest text-ink/40">
-                Estado en vivo
-              </p>
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {(["pendiente", "preparando", "listo", "entregado"] as const).map((e, i) => {
-                  const activo = pedido && estado === e;
-                  return (
-                    <div
-                      key={e}
-                      className={`rounded-2xl p-3 text-center flex flex-col items-center justify-center ${
-                        activo ? "bg-sun/30 ring-2 ring-brand" : "bg-cream"
-                      }`}
+            ) : (
+              <div className="rounded-[28px] bg-ink text-cream p-6 shadow-[8px_8px_0_var(--brand)] sticky top-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display font-bold text-2xl">Tu pedido</h3>
+                  <span className="bg-brand rounded-full size-8 grid place-items-center font-bold">
+                    {cantidad}
+                  </span>
+                </div>
+                <ul className="mt-4 space-y-3">
+                  {carrito.length === 0 && (
+                    <li className="text-sm text-cream/50 bg-white/5 rounded-2xl px-4 py-3">
+                      Todavía no agregaste nada.
+                    </li>
+                  )}
+                  {carrito.map((l, i) => (
+                    <li
+                      key={`${l.menu_item_id}-${l.personalizacion}-${i}`}
+                      className="flex justify-between items-center bg-white/5 rounded-2xl px-4 py-3"
                     >
-                      <span className="text-xl">{["🟡", "🔵", "🟢", "🍽️"][i]}</span>
-                      <p
-                        className={`text-xs font-bold mt-1 ${activo ? "text-brand" : ""}`}
-                      >
-                        {estadoLabel[e]}
-                      </p>
+                      <div>
+                        <p className="font-semibold">
+                          {l.cantidad} × {l.nombre}
+                        </p>
+                        {l.personalizacion && (
+                          <p className="text-xs text-brand font-bold">{l.personalizacion}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="font-display font-semibold">{gs(l.precio * l.cantidad)}</p>
+                        <button
+                          onClick={() => quitar(i)}
+                          aria-label="Quitar"
+                          className="text-cream/40 hover:text-brand bg-white/5 rounded-full size-6 flex items-center justify-center text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-4 flex justify-between items-end border-t border-white/15 pt-4">
+                  <p className="text-cream/60 text-sm">Subtotal</p>
+                  <p className="font-display font-bold text-4xl text-sun">{gs(total)}</p>
+                </div>
+                <button
+                  onClick={enviarPedido}
+                  disabled={carrito.length === 0 || enviando}
+                  className="mt-5 w-full rounded-2xl bg-brand py-4 font-display font-bold text-xl shadow-[4px_4px_0_var(--sun)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40 disabled:active:translate-x-0 disabled:active:shadow-[4px_4px_0_var(--sun)] transition-all"
+                >
+                  Confirmar a Cocina →
+                </button>
+                
+                <div className="mt-6 flex flex-col gap-3 p-4 bg-white/10 rounded-2xl">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-cream/70">Estado del Pedido</span>
+                    <span className="font-bold text-brand">{pedido ? estadoLabel[estado] : "Ninguno"}</span>
+                  </div>
+                  {pedido && (
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-brand h-full transition-all duration-1000 ease-in-out" 
+                        style={{ 
+                          width: estado === 'pendiente' ? '25%' : 
+                                estado === 'preparando' ? '50%' : 
+                                estado === 'listo' ? '75%' : '100%' 
+                        }} 
+                      />
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
-              {pedido?.cuenta_solicitada && (
-                <p className="mt-3 text-sm font-semibold text-brand">
-                  🧾 Cuenta solicitada · el mozo ya fue avisado
-                </p>
-              )}
-            </div>
+            )}
           </aside>
         </div>
       </div>

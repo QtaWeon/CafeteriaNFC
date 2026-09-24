@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { collection, query, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
-import { gs, imagenDe } from "@/lib/cafe";
+import { gs, imagenDe, menuImages, categoriaLabel } from "@/lib/cafe";
 
 export function MenuManagement() {
   const qc = useQueryClient();
@@ -45,6 +45,8 @@ export function MenuManagement() {
     const form = new FormData(e.currentTarget);
     const nombre = form.get("nombre") as string;
     const precio = Number(form.get("precio"));
+    const categoria = form.get("categoria") as string;
+    const imagen = form.get("imagen") as string;
     const descripcion = form.get("descripcion") as string;
     
     try {
@@ -52,7 +54,8 @@ export function MenuManagement() {
         nombre,
         precio,
         descripcion,
-        imagen: "cafe", // default temporal
+        categoria,
+        imagen,
         disponible: true,
         opciones: [],
         orden: (menu?.length || 0) + 1,
@@ -85,6 +88,16 @@ export function MenuManagement() {
           <div className="grid sm:grid-cols-2 gap-4">
             <input required name="nombre" placeholder="Nombre (ej. Cappuccino)" className="bg-cream rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-brand" />
             <input required type="number" name="precio" placeholder="Precio (ej. 15000)" className="bg-cream rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-brand" />
+            <select required name="categoria" className="bg-cream rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-brand">
+              {Object.entries(categoriaLabel).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+            <select required name="imagen" className="bg-cream rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-brand">
+              {Object.keys(menuImages).map(key => (
+                <option key={key} value={key}>{key}</option>
+              ))}
+            </select>
             <input required name="descripcion" placeholder="Descripción corta" className="bg-cream rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-brand sm:col-span-2" />
           </div>
           <button type="submit" className="w-full bg-sun text-ink py-3 rounded-xl font-bold">

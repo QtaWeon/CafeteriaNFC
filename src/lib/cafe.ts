@@ -51,3 +51,24 @@ export const accionLabel: Record<Estado, string> = {
   entregado: "CERRAR MESA",
   finalizado: "",
 };
+
+export type Categoria = "cafe" | "fria" | "reposteria" | "snack";
+
+export const categoriaLabel: Record<Categoria, string> = {
+  cafe: "Cafés",
+  fria: "Bebidas Frías",
+  reposteria: "Repostería",
+  snack: "Snacks",
+};
+
+export const categoriaEmoji: Record<Categoria, string> = {
+  cafe: "☕",
+  fria: "🧊",
+  reposteria: "🥐",
+  snack: "🥪",
+};
+
+export function formatHora(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" });
+}

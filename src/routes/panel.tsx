@@ -1,32 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { collection, query, where, orderBy, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { useState } from "react";
 import { db } from "@/lib/firebase";
 import { MenuManagement } from "@/components/MenuManagement";
-import {
-  gs,
-  estadoLabel,
-  estadoDot,
-  siguienteEstado,
-  accionLabel,
-  type Estado,
-} from "@/lib/cafe";
+import { MesaManager } from "@/components/MesaManager";
+import { MetricsDashboard } from "@/components/MetricsDashboard";
+import { gs, estadoLabel, estadoDot, siguienteEstado, accionLabel, type Estado } from "@/lib/cafe";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/panel")({
   head: () => ({
     meta: [
-      { title: "Panel de la cafetería — CaféNFC" },
-      {
-        name: "description",
-        content: "Cocina y mozos: pedidos por mesa, totales y cambio de estado en un toque.",
-      },
-      { property: "og:title", content: "Panel de la cafetería — CaféNFC" },
-      {
-        property: "og:description",
-        content: "Pedidos por mesa, totales y estados: aceptar, preparar, listo y entregado.",
-      },
+      { title: "Panel Admin — CaféNFC" },
     ],
   }),
   component: Panel,
@@ -34,12 +20,11 @@ export const Route = createFileRoute("/panel")({
 
 function Panel() {
   const qc = useQueryClient();
-
   const [pin, setPin] = useState("");
   const [unlocked, setUnlocked] = useState(
     typeof window !== "undefined" && localStorage.getItem("cafe_admin_pin") === "2403"
   );
-  const [tab, setTab] = useState<"pedidos" | "menu">("pedidos");
+  const [tab, setTab] = useState<"pedidos" | "menu" | "mesas" | "metricas">("metricas");
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -64,10 +49,7 @@ function Panel() {
     refetchInterval: 4000,
     enabled: unlocked && tab === "pedidos",
     queryFn: async () => {
-      const q = query(
-        collection(db, "pedidos"),
-        where("estado", "!=", "finalizado")
-      );
+      const q = query(collection(db, "pedidos"), where("estado", "!=", "finalizado"));
       const snapshot = await getDocs(q);
       const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
       return items.sort((a, b) => {
@@ -85,12 +67,11 @@ function Panel() {
         estado: proximo,
         updated_at: new Date().toISOString(),
       });
+      qc.invalidateQueries({ queryKey: ["pedidos-panel"] });
+      toast.success(`Pedido ${estadoLabel[proximo].toLowerCase()}`);
     } catch (error) {
       toast.error("No pudimos actualizar el pedido");
-      return;
     }
-    qc.invalidateQueries({ queryKey: ["pedidos-panel"] });
-    toast.success(`Pedido ${estadoLabel[proximo].toLowerCase()}`);
   }
 
   if (!unlocked) {
@@ -98,8 +79,8 @@ function Panel() {
       <div className="min-h-screen bg-cream flex items-center justify-center p-6">
         <form onSubmit={handleLogin} className="bg-white p-8 rounded-[32px] shadow-[8px_8px_0_var(--ink)] border-2 border-ink/5 max-w-sm w-full text-center">
           <span className="text-4xl block mb-4">🔒</span>
-          <h1 className="font-display font-bold text-2xl mb-2">Acceso al Panel</h1>
-          <p className="text-ink/60 text-sm mb-6">Ingresá el PIN de seguridad para continuar.</p>
+          <h1 className="font-display font-bold text-2xl mb-2">Acceso Admin</h1>
+          <p className="text-ink/60 text-sm mb-6">Ingresá el PIN de administración.</p>
           <input
             type="password"
             pattern="[0-9]*"
@@ -128,11 +109,11 @@ function Panel() {
         <header className="flex items-center justify-between gap-4 flex-wrap mb-8">
           <div className="flex items-center gap-3">
             <span className="size-12 rounded-2xl bg-teal grid place-items-center text-2xl shadow-[4px_4px_0_var(--ink)]">
-              👨‍🍳
+              📊
             </span>
             <div>
-              <h1 className="font-display font-bold text-3xl">Panel de la cafetería</h1>
-              <p className="text-sm text-ink/50">Administrador · cocina y mozos</p>
+              <h1 className="font-display font-bold text-3xl">Panel de Administración</h1>
+              <p className="text-sm text-ink/50">Métricas, menú, mesas y pedidos</p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -143,30 +124,46 @@ function Panel() {
               Salir
             </button>
             <Link
-              to="/"
+              to="/cocina"
               className="rounded-2xl bg-ink text-cream px-5 py-3 font-display font-semibold shadow-[4px_4px_0_var(--brand)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
             >
-              Ver mesas
+              Ver KDS (Cocina)
             </Link>
           </div>
         </header>
 
-        <div className="flex gap-2 mb-8 bg-ink/5 p-1 rounded-2xl w-max">
+        <div className="flex gap-2 mb-8 bg-ink/5 p-1 rounded-2xl w-max overflow-x-auto max-w-full scrollbar-hide">
+          <button
+            onClick={() => setTab("metricas")}
+            className={`px-6 py-2.5 rounded-xl font-bold transition-colors whitespace-nowrap ${tab === "metricas" ? "bg-white shadow-sm text-ink" : "text-ink/60 hover:text-ink"}`}
+          >
+            📈 Métricas
+          </button>
           <button
             onClick={() => setTab("pedidos")}
-            className={`px-6 py-2.5 rounded-xl font-bold transition-colors ${tab === "pedidos" ? "bg-white shadow-sm text-ink" : "text-ink/60 hover:text-ink"}`}
+            className={`px-6 py-2.5 rounded-xl font-bold transition-colors whitespace-nowrap ${tab === "pedidos" ? "bg-white shadow-sm text-ink" : "text-ink/60 hover:text-ink"}`}
           >
             📋 Pedidos Activos
           </button>
           <button
             onClick={() => setTab("menu")}
-            className={`px-6 py-2.5 rounded-xl font-bold transition-colors ${tab === "menu" ? "bg-white shadow-sm text-ink" : "text-ink/60 hover:text-ink"}`}
+            className={`px-6 py-2.5 rounded-xl font-bold transition-colors whitespace-nowrap ${tab === "menu" ? "bg-white shadow-sm text-ink" : "text-ink/60 hover:text-ink"}`}
           >
-            🍔 Administrar Menú
+            🍔 Menú
+          </button>
+          <button
+            onClick={() => setTab("mesas")}
+            className={`px-6 py-2.5 rounded-xl font-bold transition-colors whitespace-nowrap ${tab === "mesas" ? "bg-white shadow-sm text-ink" : "text-ink/60 hover:text-ink"}`}
+          >
+            📡 Mesas & NFC
           </button>
         </div>
 
-        {tab === "pedidos" ? (
+        {tab === "metricas" && <MetricsDashboard />}
+        {tab === "menu" && <MenuManagement />}
+        {tab === "mesas" && <MesaManager />}
+        
+        {tab === "pedidos" && (
           <section>
             <div className="grid sm:grid-cols-3 gap-4">
               {pedidos?.length === 0 && (
@@ -222,8 +219,6 @@ function Panel() {
               })}
             </div>
           </section>
-        ) : (
-          <MenuManagement />
         )}
       </div>
     </div>
