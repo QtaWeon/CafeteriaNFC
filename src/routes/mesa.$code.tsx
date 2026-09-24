@@ -68,16 +68,16 @@ function MesaPage() {
     queryFn: async () => {
       const q = query(
         collection(db, "pedidos"),
+        where("mesa_id", "==", mesa!.id),
         where("estado", "!=", "finalizado")
       );
       const snapshot = await getDocs(q);
       const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
       
-      const activosMesa = docs
-        .filter((d) => d.mesa_id === mesa!.id)
+      const sorted = docs
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
-      return activosMesa.length > 0 ? activosMesa[0] : null;
+      return sorted.length > 0 ? sorted[0] : null;
     },
   });
 
@@ -155,30 +155,21 @@ function MesaPage() {
     toast.success("Avisamos al mozo");
   }
 
-  async function handlePaymentSuccess() {
-    if (pedido) {
-      await updateDoc(doc(db, "pedidos", pedido.id), {
-        estado: "finalizado",
-        pagado_nfc: true,
-        updated_at: new Date().toISOString()
-      });
-      qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa?.id] });
-      toast.success("¡Pago exitoso! Gracias por venir.");
-    }
-    setPagando(false);
-  }
+
 
   async function handleCashPayment() {
     if (pedido) {
       await updateDoc(doc(db, "pedidos", pedido.id), {
         cuenta_solicitada: true,
         metodo_pago: "efectivo",
+        estado: "finalizado",
         updated_at: new Date().toISOString()
       });
       qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa?.id] });
       toast.success("Avisamos al mozo de tu forma de pago");
     }
     setPagando(false);
+    window.location.href = "/";
   }
 
   const estado = (pedido?.estado ?? "pendiente") as Estado;
@@ -322,7 +313,6 @@ function MesaPage() {
                 <PaymentPanel
                   total={pedido.total}
                   onClose={() => setPagando(false)}
-                  onSuccess={handlePaymentSuccess}
                   onCash={handleCashPayment}
                 />
               </div>

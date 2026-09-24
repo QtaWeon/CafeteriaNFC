@@ -49,6 +49,15 @@ export function MenuManagement() {
     const imagen = form.get("imagen") as string;
     const descripcion = form.get("descripcion") as string;
     
+    if (!nombre || nombre.trim().length === 0) {
+      toast.error("El nombre es obligatorio");
+      return;
+    }
+    if (!precio || isNaN(precio) || precio <= 0) {
+      toast.error("El precio debe ser un número mayor a 0");
+      return;
+    }
+    
     try {
       await addDoc(collection(db, "menu_items"), {
         nombre,
