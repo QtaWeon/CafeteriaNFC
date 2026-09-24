@@ -14,7 +14,7 @@ export function PaymentPanel({ total, onSuccess, onCash, onClose }: PaymentPanel
   const propina = (total * propinaPct) / 100;
   const final = total + propina;
 
-  const [estadoPago, setEstadoPago] = useState<"idle" | "reading" | "success" | "mp_fallback">("idle");
+  const [estadoPago, setEstadoPago] = useState<"idle" | "reading" | "success" | "mp_fallback" | "transferencia">("idle");
 
   async function handleTapToPay() {
     if ("NDEFReader" in window) {
@@ -34,6 +34,45 @@ export function PaymentPanel({ total, onSuccess, onCash, onClose }: PaymentPanel
     } else {
       setEstadoPago("mp_fallback");
     }
+  }
+
+  if (estadoPago === "transferencia") {
+    return (
+      <div className="bg-white rounded-[28px] p-6 shadow-[6px_6px_0_var(--ink)] border-2 border-ink/5 relative animate-in fade-in zoom-in-95 duration-200">
+        <button onClick={() => setEstadoPago("idle")} className="absolute top-4 right-4 text-ink/40 hover:text-ink font-bold text-xl">✕</button>
+        <h3 className="font-display font-bold text-2xl mb-1">Efectivo o Transferencia</h3>
+        <p className="text-ink/60 text-sm mb-6">Monto total a pagar: <strong className="text-ink">{gs(final)}</strong></p>
+        
+        <div className="bg-cream p-4 rounded-2xl text-sm space-y-3 mb-6 border-2 border-ink/5">
+          <div className="flex justify-between items-center">
+            <span className="text-ink/60">Titular</span>
+            <span className="font-bold">Giovanni Portillo</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-ink/60">Documento / Alias</span>
+            <span className="font-bold text-lg text-brand bg-brand/10 px-2 py-0.5 rounded-lg">6670901</span>
+          </div>
+          <div className="mt-4 pt-4 border-t-2 border-ink/10 text-center">
+            <p className="text-ink/60 text-xs mb-2">Enviar comprobante al WhatsApp:</p>
+            <a 
+              href={`https://wa.me/595992351545?text=Hola,%20acá%20está%20el%20comprobante%20de%20mi%20pedido%20por%20${gs(final)}`} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="font-bold text-ink bg-[#25D366]/20 px-4 py-2 rounded-xl inline-block"
+            >
+              📱 0992 351 545
+            </a>
+          </div>
+        </div>
+
+        <button
+          onClick={onCash}
+          className="w-full rounded-2xl bg-brand text-cream py-4 font-display font-bold text-lg shadow-[4px_4px_0_var(--ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+        >
+          Avisar al mozo
+        </button>
+      </div>
+    );
   }
 
   if (estadoPago === "mp_fallback") {
@@ -67,10 +106,10 @@ export function PaymentPanel({ total, onSuccess, onCash, onClose }: PaymentPanel
         </button>
 
         <button
-          onClick={onCash}
+          onClick={() => setEstadoPago("transferencia")}
           className="mt-4 w-full rounded-2xl bg-cream text-ink py-4 font-bold text-lg border-2 border-ink/10 active:bg-ink/5"
         >
-          Prefiero pagar en efectivo
+          Efectivo o Transferencia
         </button>
       </div>
     );
@@ -143,10 +182,10 @@ export function PaymentPanel({ total, onSuccess, onCash, onClose }: PaymentPanel
       </button>
 
       <button
-        onClick={onCash}
+        onClick={() => setEstadoPago("transferencia")}
         className="mt-4 w-full rounded-2xl bg-cream text-ink py-4 font-bold text-lg border-2 border-ink/10 active:bg-ink/5 flex items-center justify-center gap-3"
       >
-        <span>💵</span> Pagar en efectivo
+        <span>💵</span> Efectivo o Transferencia
       </button>
     </div>
   );

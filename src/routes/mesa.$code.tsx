@@ -176,7 +176,7 @@ function MesaPage() {
         updated_at: new Date().toISOString()
       });
       qc.invalidateQueries({ queryKey: ["pedido-mesa", mesa?.id] });
-      toast.success("Avisamos al mozo para cobrar en efectivo");
+      toast.success("Avisamos al mozo de tu forma de pago");
     }
     setPagando(false);
   }
