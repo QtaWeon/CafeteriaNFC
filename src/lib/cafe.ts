@@ -14,7 +14,11 @@ export function imagenDe(key: string): string {
   return menuImages[key] ?? cappuccino;
 }
 
-export function gs(valor: number): string {
+export function gs(valor: any): string {
+  if (typeof valor !== "number") {
+    const parsed = Number(valor);
+    valor = isNaN(parsed) ? 0 : parsed;
+  }
   return "Gs " + valor.toLocaleString("es-PY");
 }
 
