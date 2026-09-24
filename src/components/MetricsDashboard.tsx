@@ -18,7 +18,7 @@ export function MetricsDashboard() {
 
   // Process data for charts
   const hoy = new Date().toISOString().split("T")[0];
-  const pedidosHoy = pedidos?.filter(p => p.created_at.startsWith(hoy)) || [];
+  const pedidosHoy = pedidos?.filter(p => p.created_at?.startsWith(hoy)) || [];
   
   const ventasHoy = pedidosHoy.reduce((acc, p) => acc + (p.total || 0), 0);
   const totalPedidosHoy = pedidosHoy.length;
